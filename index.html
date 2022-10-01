@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Build CRUD DataGrid with jQuery EasyUI - jQuery EasyUI Demo</title>
+    <link rel="stylesheet" type="text/css" href="easyui/themes/default/easyui.css">
+    <link rel="stylesheet" type="text/css" href="easyui/themes/icon.css">
+    <link rel="stylesheet" type="text/css" href="easyui/demo/demo.css">
+    <script type="text/javascript" src="easyui/jquery.min.js"></script>
+    <script type="text/javascript" src="easyui/jquery.easyui.min.js"></script>
+    <script type="text/javascript" src="easyui/jquery.edatagrid.js"></script>
+</head>
+<body>
+    <h2>APTOS FAUCET UTIL</h2>
+    <div id="config" style="margin-bottom: 10px;">
+            <select class="easyui-combobox" name="state" label="network:" labelPosition="left" style="width:300px;margin-right:200px;">
+                <option value="Devnet">Devnet</option>
+                <option value="Testnet">Testnet</option>
+            </select>
+            <input class="easyui-textbox" labelWidth="100px" label="faucet count:" labelPosition="left" style="width:300px;" value="9">
+            <input class="easyui-filebox" id="addressFile" label="address file:" labelPosition="top" data-options="prompt:'Choose another file...'" style="width:600px">
+            <a href="#" class="easyui-linkbutton" iconCls="icon-save" onClick="importAddress();" style="width:80px">import</a>
+        </div>
+    <div>
+        <table id="dg" style="width:100%;height: 500px;"
+            toolbar="#toolbar" pagination="false" idField="address"
+            rownumbers="true" fitColumns="true" singleSelect="true">
+    </table>
+    </div>
+    <div id="toolbar">
+        <a href="javascript:void(0)" class="easyui-linkbutton" iconCls="icon-add" plain="true" onclick="javascript:faucet()">Faucet</a>
+        <a href="javascript:void(0)" class="easyui-linkbutton" iconCls="icon-search" plain="true" onclick="javascript:balance()">Balance</a>
+        <a href="javascript:void(0)" class="easyui-linkbutton" iconCls="icon-reload" plain="true" onclick="javascript:$('#dg').datagrid('reload')">refresh</a>
+    </div>
+    <script type="text/javascript">
+        $(function(){
+            $('#dg').datagrid({
+                columns:[[
+                    {field:'address',title:'address', width:150},
+                    {field:'balance',title:'balance', width:50},
+                    {field:'proc',title:'proc', width:50,
+                        formatter: function(value, row, index){
+                            return row.proc + "/";
+                        }
+                    },
+                    {field:'progress',title:'progress', width:80}
+                ]]
+            });
+        });
+
+        function importAddress(){
+            let files = $("#addressFile").filebox("files");
+            if(!files || files.lenght == 0) {
+                alert("please choose file!");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const file = event.target.result;
+                const allLines = file.split(/\r\n|\n/);
+                let datas = []
+                allLines.forEach((line) => {
+                    datas.push({address:line,balance:'-',proc:"0"});
+                });
+
+                $('#dg').datagrid('loadData', datas);
+            };
+
+            reader.onerror = (event) => {
+                alert(event.target.error.name);
+            };
+
+            reader.readAsText(files[0]);
+       }
+
+       function faucet(){
+        let rows = $("#dg").datagrid("getRows");
+         if(!rows || rows.lenght == 0) {
+            alert("no address!");
+            return;
+         }
+
+         rows.forEach(rowData => {
+            requestFaucet(rowData);
+         });
+       }
+
+       function requestFaucet(rowData) {
+            // devnet
+            // https://fullnode.devnet.aptoslabs.com
+            // https://faucet.devnet.aptoslabs.com
+            // testnet
+            // https://fullnode.testnet.aptoslabs.com
+            // https://faucet.testnet.aptoslabs.com
+            $.post("https://faucet.devnet.aptoslabs.com/mint?address="+rowData.address+"&amount=100000000"
+            ).done(function(result) {
+                requestBalance(rowData);
+            }).fail(function() {
+                alert( "error" );
+            });
+       }
+
+       function balance(){
+         let rows = $("#dg").datagrid("getRows");
+         if(!rows || rows.lenght == 0) {
+            alert("no address!");
+            return;
+         }
+         let index = 0;
+         rows.forEach(rowData => {
+            requestBalance(rowData);
+         });
+       }
+
+       function requestBalance(rowData) {
+            // devnet
+            // https://fullnode.devnet.aptoslabs.com
+            // https://faucet.devnet.aptoslabs.com
+            // testnet
+            // https://fullnode.testnet.aptoslabs.com
+            // https://faucet.testnet.aptoslabs.com
+            $.get("https://fullnode.devnet.aptoslabs.com/v1/accounts/"+rowData.address+"/resources")
+            .done(function(result) {
+                const typeTag = "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>";
+                const resources = result.find((r) => r.type === typeTag);
+                const balance = resources.data.coin.value/100000000;
+                const updateData = {address:rowData.address, balance:balance, proc:rowData.proc}
+                const rowIndex = $('#dg').datagrid('getRowIndex', rowData.address);
+                if(rowIndex || rowIndex == 0) {
+                    $('#dg').datagrid('updateRow',{
+                        index: rowIndex,
+                        row: updateData
+                    });
+                }else {
+                    $('#dg').datagrid('appendRow', updateData);
+                }
+               
+            }).fail(function() {
+                alert( "error" );
+            });
+       }
+    </script>
+</body>
+</html>
