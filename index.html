@@ -2,55 +2,116 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Build CRUD DataGrid with jQuery EasyUI - jQuery EasyUI Demo</title>
+    <title>APTOS FAUCET TOOL</title>
     <link rel="stylesheet" type="text/css" href="easyui/themes/default/easyui.css">
     <link rel="stylesheet" type="text/css" href="easyui/themes/icon.css">
-    <link rel="stylesheet" type="text/css" href="easyui/demo/demo.css">
     <script type="text/javascript" src="easyui/jquery.min.js"></script>
     <script type="text/javascript" src="easyui/jquery.easyui.min.js"></script>
-    <script type="text/javascript" src="easyui/jquery.edatagrid.js"></script>
+    <script type="text/javascript" src="easyui/jquery.datagrid-detailview.js"></script>
 </head>
 <body>
-    <h2>APTOS FAUCET UTIL</h2>
-    <div id="config" style="margin-bottom: 10px;">
-            <select class="easyui-combobox" name="state" label="network:" labelPosition="left" style="width:300px;margin-right:200px;">
-                <option value="Devnet">Devnet</option>
-                <option value="Testnet">Testnet</option>
+    <h2>APTOS FAUCET TOOL</h2>
+    <div id="config" style="margin-bottom: 5px;">
+            <select class="easyui-combobox" id="network" name="state" label="network:" labelPosition="left" style="width:400px;margin-right:200px;">
+                <option value="devnet">Devnet</option>
+                <option value="testnet">Testnet</option>
             </select>
-            <input class="easyui-textbox" labelWidth="100px" label="faucet count:" labelPosition="left" style="width:300px;" value="9">
-            <input class="easyui-filebox" id="addressFile" label="address file:" labelPosition="top" data-options="prompt:'Choose another file...'" style="width:600px">
+            <input class="easyui-textbox" id="faucetCount" labelWidth="110px" label="faucet count:" labelPosition="left" style="width:400px;">
+            <input class="easyui-textbox" id="amount" label="amount:" labelPosition="left" style="width:400px;">
+            <input class="easyui-filebox" id="addressFile" labelWidth="110px"  label="address file:" labelPosition="top" data-options="prompt:'Choose address file...'" style="width:600px;">
             <a href="#" class="easyui-linkbutton" iconCls="icon-save" onClick="importAddress();" style="width:80px">import</a>
-        </div>
+            <!-- <div id='p' class='easyui-progressbar' style='width:100px;color:red'></div> -->
+    </div>
     <div>
-        <table id="dg" style="width:100%;height: 500px;"
+    <table id="dg" style="width:100%;"
             toolbar="#toolbar" pagination="false" idField="address"
             rownumbers="true" fitColumns="true" singleSelect="true">
     </table>
     </div>
     <div id="toolbar">
         <a href="javascript:void(0)" class="easyui-linkbutton" iconCls="icon-add" plain="true" onclick="javascript:faucet()">Faucet</a>
-        <a href="javascript:void(0)" class="easyui-linkbutton" iconCls="icon-search" plain="true" onclick="javascript:balance()">Balance</a>
-        <a href="javascript:void(0)" class="easyui-linkbutton" iconCls="icon-reload" plain="true" onclick="javascript:$('#dg').datagrid('reload')">refresh</a>
+        <a href="javascript:void(0)" class="easyui-linkbutton" iconCls="icon-reload" plain="true" onclick="javascript:balance()">Balance</a>
     </div>
     <script type="text/javascript">
+        const networkUrl = {
+            testnet:{
+                coinUrl:'https://fullnode.testnet.aptoslabs.com',
+                faucetUrl:'https://faucet.testnet.aptoslabs.com'
+            },
+            devnet: {
+                coinUrl:'https://fullnode.devnet.aptoslabs.com',
+                faucetUrl:'https://faucet.devnet.aptoslabs.com'
+            }
+        };
+        let detailDatas = {};
+        let sumCout = 0;
         $(function(){
+            //set fault value
+            sumCout = 9;
+            $('#faucetCount').textbox('setValue', sumCout);
+            $("#network").combobox({
+                formatter : function(row){
+                    var networkId = row.value;
+                    var url = networkUrl[networkId];
+                    var s = '<span style="font-weight:bold">' + row.text + '</span><br/>' +
+                            '<span style="color:#888">' + url.coinUrl + '</span><br/>' +
+                            '<span style="color:#888">' + url.faucetUrl + '</span>';
+                    return s;
+                }
+            });
+            $('#network').combobox("setValue", 'testnet');
+            $('#amount').textbox('setValue', '100000000');
             $('#dg').datagrid({
                 columns:[[
                     {field:'address',title:'address', width:150},
                     {field:'balance',title:'balance', width:50},
                     {field:'proc',title:'proc', width:50,
                         formatter: function(value, row, index){
-                            return row.proc + "/";
+                             var proc = row.proc ? row.proc : 0;
+                             return proc + "/" + sumCout;
                         }
                     },
-                    {field:'progress',title:'progress', width:80}
-                ]]
+                    {field:'lastResult',title:'lastResult', width:80}
+                ]],
+                data: [
+                    {address:'478d95fb571738b92e489d300092c08a4252281d019a2d74d53f5698b6607265', balance:'-', proc:0}
+                ],
+                view: detailview,
+                detailFormatter:function(index,row){
+                    return '<div style="padding:2px;position:relative;"><table class="ddv"></table></div>';
+                },
+                onExpandRow: function(index, row){
+                    var ddv = $(this).datagrid('getRowDetail',index).find('table.ddv');
+                    var detailData = detailDatas["rowIdx"+index];
+                    if(!detailData) detailData = [];
+                    ddv.datagrid({
+                        //fitColumns:true,
+                        singleSelect:true,
+                        //rownumbers:true,
+                        data: detailData,
+                        loadMsg:'',
+                        height:'auto',
+                        columns:[[
+                            {field:'seqNo',title:'seqNo',width:'10%'},
+                            {field:'result',title:'result',width:'80%'}
+                        ]],
+                        onResize:function(){
+                            $('#dg').datagrid('fixDetailRowHeight',index);
+                        },
+                        onLoadSuccess:function(){
+                            setTimeout(function(){
+                                $('#dg').datagrid('fixDetailRowHeight',index);
+                            },0);
+                        }
+                    });
+                    $('#dg').datagrid('fixDetailRowHeight',index);
+                }
             });
         });
 
         function importAddress(){
             let files = $("#addressFile").filebox("files");
-            if(!files || files.lenght == 0) {
+            if(!files || files.length == 0) {
                 alert("please choose file!");
                 return;
             }
@@ -60,12 +121,11 @@
                 const allLines = file.split(/\r\n|\n/);
                 let datas = []
                 allLines.forEach((line) => {
-                    datas.push({address:line,balance:'-',proc:"0"});
+                    datas.push({address:line,balance:'-',proc:0});
                 });
 
                 $('#dg').datagrid('loadData', datas);
             };
-
             reader.onerror = (event) => {
                 alert(event.target.error.name);
             };
@@ -74,70 +134,187 @@
        }
 
        function faucet(){
-        let rows = $("#dg").datagrid("getRows");
-         if(!rows || rows.lenght == 0) {
-            alert("no address!");
-            return;
-         }
+            let rows = $("#dg").datagrid("getRows");
+            if(!rows || rows.length == 0) {
+                $.messager.alert("no address!");
+                return;
+            }
+            let networkUrl = getNetwork();
+            if(!networkUrl) {
+                $.messager.alert("please choose network!");
+                return;
+            }
+            let faucetCount = $("#faucetCount").textbox("getValue");
+            if(!faucetCount) {
+                $.messager.alert("please write faucet count!");
+                return;
+            }
+            let amount = $("#amount").textbox("getValue");
+            if(!amount) {
+                $.messager.alert("please write amount!");
+                return;
+            }
+            $.messager.progress({text:'faucet...'});
+            $.when( function() {
+            }).then( function() {
+                sumCout = faucetCount;
+                detailDatas = {};
+                updateProc(0);
 
-         rows.forEach(rowData => {
-            requestFaucet(rowData);
-         });
-       }
+                var promises = [];
+                rows.forEach(rowData => { 
+                    try{
+                        var count = Number(faucetCount)
+                        for(index = 1; index <= count; index++) {
+                            promises.push(requestFaucet(rowData, networkUrl, amount, index, count));
+                        }
+                    } catch (e) {
+                        console.log(e);
+                    }
+                });
 
-       function requestFaucet(rowData) {
+                Promise.all(promises).then(function() {
+                    requestBalance(rowData, networkUrl);
+                    $.messager.progress('close');
+                }, function() {
+                    balance();
+                    $.messager.progress('close');
+                });
+             }).then( function() {
+            });
+        }
+
+        function requestFaucet(rowData, networkUrl, amount, index, count) {
             // devnet
             // https://fullnode.devnet.aptoslabs.com
             // https://faucet.devnet.aptoslabs.com
             // testnet
             // https://fullnode.testnet.aptoslabs.com
             // https://faucet.testnet.aptoslabs.com
-            $.post("https://faucet.devnet.aptoslabs.com/mint?address="+rowData.address+"&amount=100000000"
-            ).done(function(result) {
-                requestBalance(rowData);
-            }).fail(function() {
-                alert( "error" );
+            return $.ajax({
+                url:networkUrl.faucetUrl+"/mint?address="+rowData.address+"&amount="+amount,
+                type:'POST',
+                async : true
+            }).done(function(result) {
+                const rowIndex = $('#dg').datagrid('getRowIndex', rowData.address);
+                const newRowData = $('#dg').datagrid('getRows')[rowIndex];
+                
+                const updateData = {address:rowData.address, proc:newRowData.proc + 1, lastResult: result[0]}
+                updateRowData(updateData);
+                //requestBalance(rowData, networkUrl);
+                pushDetailData(rowIndex, {
+                    seqNo: index,
+                    result: result[0]
+                });
+            }).fail(function(err) {
+                const rowIndex = $('#dg').datagrid('getRowIndex', rowData.address);
+                const newRowData = $('#dg').datagrid('getRows')[rowIndex];
+                var reason = err.responseText;
+                if(!reason){
+                    reason = "server no response";    
+                }
+                const updateData = {address:rowData.address, proc:newRowData.proc+1, lastResult: reason}
+                updateRowData(updateData);
+                pushDetailData(rowIndex, {
+                    seqNo: index,
+                    result: reason
+                });
+                //You have reached your daily limit for faucet requests (10 per day). Please try again tomorrow.
+                if(err.status == 429) {
+                    throw new Error(reason);
+                }
             });
        }
 
        function balance(){
-         let rows = $("#dg").datagrid("getRows");
-         if(!rows || rows.lenght == 0) {
-            alert("no address!");
-            return;
-         }
-         let index = 0;
-         rows.forEach(rowData => {
-            requestBalance(rowData);
-         });
+            let rows = $("#dg").datagrid("getRows");
+            if(!rows || rows.length == 0) {
+                $.messager.alert("no address!");
+                return;
+            }
+            let networkUrl = getNetwork();
+            if(!networkUrl) {
+                $.messager.alert("please choose network!");
+                return;
+            }
+            $.messager.progress({text:'faucet...'});
+            $.when( function() {
+            }).then( function() {
+                var promises = [];
+                rows.forEach(rowData => { 
+                    promises.push(requestBalance(rowData, networkUrl));
+                });
+
+                Promise.all(promises).then(function() {
+                    $.messager.progress('close');
+                }, function() {
+                    $.messager.progress('close');
+                });
+            });
        }
 
-       function requestBalance(rowData) {
+       function requestBalance(rowData, networkUrl) {
             // devnet
             // https://fullnode.devnet.aptoslabs.com
             // https://faucet.devnet.aptoslabs.com
             // testnet
             // https://fullnode.testnet.aptoslabs.com
             // https://faucet.testnet.aptoslabs.com
-            $.get("https://fullnode.devnet.aptoslabs.com/v1/accounts/"+rowData.address+"/resources")
-            .done(function(result) {
+            return $.ajax({
+                url:networkUrl.coinUrl+"/v1/accounts/"+rowData.address+"/resources",
+                type:'GET'
+            }).done(function(result) {
                 const typeTag = "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>";
                 const resources = result.find((r) => r.type === typeTag);
                 const balance = resources.data.coin.value/100000000;
                 const updateData = {address:rowData.address, balance:balance, proc:rowData.proc}
-                const rowIndex = $('#dg').datagrid('getRowIndex', rowData.address);
-                if(rowIndex || rowIndex == 0) {
-                    $('#dg').datagrid('updateRow',{
-                        index: rowIndex,
-                        row: updateData
-                    });
-                }else {
-                    $('#dg').datagrid('appendRow', updateData);
-                }
-               
-            }).fail(function() {
-                alert( "error" );
+                updateRowData(updateData);
+            }).fail(function(err) {
+                console.log(err);
             });
+       }
+
+       function getNetwork() {
+         let networkId = $("#network").combobox("getValue");
+         if(networkId) {
+            return networkUrl[networkId];
+         }
+         return null;
+       }
+
+       function updateProc(proc) {
+            let rows = $("#dg").datagrid("getRows");
+            if(rows && rows.length > 0) {
+                rows.forEach(rowData => {
+                    let updateData = {
+                        address:rowData.address, proc:proc
+                    };
+                    updateRowData(updateData);
+                });
+            }
+       }
+
+       function updateRowData(updateData) {
+            const rowIndex = $('#dg').datagrid('getRowIndex', updateData.address);
+            if(rowIndex || rowIndex == 0) {
+                $('#dg').datagrid('updateRow',{
+                    index: rowIndex,
+                    row: updateData
+                });
+            }else {
+                $('#dg').datagrid('appendRow', updateData);
+            }
+            $('#dg').datagrid('reload');
+       }
+
+       function pushDetailData(index, detailData) {
+            var rowIdx = "rowIdx"+index;
+            var dataArray = detailDatas[rowIdx];
+            if(dataArray) {
+                dataArray.push(detailData);
+            }else {
+                detailDatas[rowIdx] = [detailData];
+            }
        }
     </script>
 </body>
